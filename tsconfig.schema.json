@@ -1,0 +1,33 @@
+{
+  "$id": "./tsconfig.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "compilerOptions": {
+      "type": "object",
+      "properties": {
+        "target": { "type": "string" },
+        "module": { "type": "string" },
+        "moduleResolution": { "type": "string" },
+        "esModuleInterop": { "type": "boolean" },
+        "forceConsistentCasingInFileNames": { "type": "boolean" },
+        "strict": { "type": "boolean" },
+        "skipLibCheck": { "type": "boolean" },
+        "resolveJsonModule": { "type": "boolean" },
+        "rootDir": { "type": "string" },
+        "outDir": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "include": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "exclude": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

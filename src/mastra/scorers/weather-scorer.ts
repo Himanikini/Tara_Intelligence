@@ -1,80 +1,122 @@
+// src/scorers/scorers.ts
 import { z } from 'zod';
 import { createToolCallAccuracyScorerCode } from '@mastra/evals/scorers/prebuilt';
 import { createCompletenessScorer } from '@mastra/evals/scorers/prebuilt';
 import { getAssistantMessageFromRunOutput, getUserMessageFromRunInput } from '@mastra/evals/scorers/utils';
 import { createScorer } from '@mastra/core/evals';
 
+// ── Scorer 1: Tool Call Appropriateness ───────────────────────────────────────
+// Checks that Tara calls the right tool for portfolio questions.
+// FIX: was checking for 'weatherTool' — updated to portfolio tools.
+// strictMode: false means partial credit if any valid tool is called.
 export const toolCallAppropriatenessScorer = createToolCallAccuracyScorerCode({
-  expectedTool: 'weatherTool',
+  expectedTool: 'portfolio_analysis',
   strictMode: false,
 });
 
+// ── Scorer 2: Completeness ────────────────────────────────────────────────────
+// Checks that the assistant's answer covers all parts of the user's question.
 export const completenessScorer = createCompletenessScorer();
 
-// Custom LLM-judged scorer: evaluates if non-English locations are translated appropriately
-export const translationScorer = createScorer({
-  id: 'translation-quality-scorer',
-  name: 'Translation Quality',
-  description: 'Checks that non-English location names are translated and used correctly',
+// ── Scorer 3: Financial Accuracy Scorer ──────────────────────────────────────
+// FIX: replaced the translation scorer (irrelevant for a portfolio app) with
+// a financial accuracy scorer that checks the answer contains real numbers,
+// fund names, and does not make up data.
+export const financialAccuracyScorer = createScorer({
+  id: 'financial-accuracy-scorer',
+  name: 'Financial Accuracy',
+  description:
+    'Checks that the assistant response contains specific financial data (numbers, fund names, percentages) and does not give vague or made-up answers',
   type: 'agent',
   judge: {
-    model: 'openai/gpt-5-mini',
+    // FIX: was 'openai/gpt-5-mini' which does not exist — use a valid model string
+    model: 'google/gemini-2.5-flash',
     instructions:
-      'You are an expert evaluator of translation quality for geographic locations. ' +
-      'Determine whether the user text mentions a non-English location and whether the assistant correctly uses an English translation of that location. ' +
-      'Be lenient with transliteration differences and diacritics. ' +
-      'Return only the structured JSON matching the provided schema.',
+      'You are an expert evaluator of AI financial assistant responses. ' +
+      'Your job is to check whether the assistant gave a specific, data-backed answer ' +
+      'or a vague, non-committal one. ' +
+      'A good answer contains actual numbers, fund names, percentages, or rupee amounts pulled from data. ' +
+      'A bad answer says things like "I cannot access your portfolio" or gives made-up placeholder values. ' +
+      'Return only structured JSON matching the provided schema.',
   },
 })
   .preprocess(({ run }) => {
-    const userText = getUserMessageFromRunInput(run.input) || '';
+    const userText      = getUserMessageFromRunInput(run.input)   || '';
     const assistantText = getAssistantMessageFromRunOutput(run.output) || '';
     return { userText, assistantText };
   })
   .analyze({
-    description: 'Extract location names and detect language/translation adequacy',
+    description: 'Detect whether the response contains real financial data or is vague/hallucinated',
     outputSchema: z.object({
-      nonEnglish: z.boolean(),
-      translated: z.boolean(),
-      confidence: z.number().min(0).max(1).default(1),
-      explanation: z.string().default(''),
+      hasNumbers:      z.boolean().describe('Response contains specific numbers or amounts'),
+      hasFundNames:    z.boolean().describe('Response mentions specific fund names'),
+      isVague:         z.boolean().describe('Response is vague or refuses to answer'),
+      isHallucinated:  z.boolean().describe('Response appears to contain made-up data'),
+      confidence:      z.number().min(0).max(1).default(1),
+      explanation:     z.string().default(''),
     }),
     createPrompt: ({ results }) => `
-            You are evaluating if a weather assistant correctly handled translation of a non-English location.
-            User text:
-            """
-            ${results.preprocessStepResult.userText}
-            """
-            Assistant response:
-            """
-            ${results.preprocessStepResult.assistantText}
-            """
-            Tasks:
-            1) Identify if the user mentioned a location that appears non-English.
-            2) If non-English, check whether the assistant used a correct English translation of that location in its response.
-            3) Be lenient with transliteration differences (e.g., accents/diacritics).
-            Return JSON with fields:
-            {
-            "nonEnglish": boolean,
-            "translated": boolean,
-            "confidence": number, // 0-1
-            "explanation": string
-            }
-        `,
+      You are evaluating whether a portfolio AI assistant gave a specific, data-backed answer.
+
+      User question:
+      """
+      ${results.preprocessStepResult.userText}
+      """
+
+      Assistant response:
+      """
+      ${results.preprocessStepResult.assistantText}
+      """
+
+      Tasks:
+      1) Does the response contain specific numbers, rupee amounts, or percentages?
+      2) Does the response mention specific fund names?
+      3) Is the response vague (e.g. "I cannot access your data", "I don't know")?
+      4) Does the response appear to contain made-up or placeholder values?
+
+      Return JSON:
+      {
+        "hasNumbers":     boolean,
+        "hasFundNames":   boolean,
+        "isVague":        boolean,
+        "isHallucinated": boolean,
+        "confidence":     number,
+        "explanation":    string
+      }
+    `,
   })
   .generateScore(({ results }) => {
     const r = (results as any)?.analyzeStepResult || {};
-    if (!r.nonEnglish) return 1; // If not applicable, full credit
-    if (r.translated) return Math.max(0, Math.min(1, 0.7 + 0.3 * (r.confidence ?? 1)));
-    return 0; // Non-English but not translated
+
+    // Vague or hallucinated responses score 0
+    if (r.isVague)        return 0;
+    if (r.isHallucinated) return 0;
+
+    // Full score only if both numbers and fund names are present
+    if (r.hasNumbers && r.hasFundNames) {
+      return Math.max(0, Math.min(1, 0.8 + 0.2 * (r.confidence ?? 1)));
+    }
+
+    // Partial credit if only one of the two is present
+    if (r.hasNumbers || r.hasFundNames) return 0.5;
+
+    return 0.2;
   })
   .generateReason(({ results, score }) => {
     const r = (results as any)?.analyzeStepResult || {};
-    return `Translation scoring: nonEnglish=${r.nonEnglish ?? false}, translated=${r.translated ?? false}, confidence=${r.confidence ?? 0}. Score=${score}. ${r.explanation ?? ''}`;
+    return (
+      `Financial accuracy: hasNumbers=${r.hasNumbers ?? false}, ` +
+      `hasFundNames=${r.hasFundNames ?? false}, ` +
+      `isVague=${r.isVague ?? false}, ` +
+      `isHallucinated=${r.isHallucinated ?? false}, ` +
+      `confidence=${r.confidence ?? 0}. ` +
+      `Score=${score}. ${r.explanation ?? ''}`
+    );
   });
 
+// ── Named exports for index.ts ────────────────────────────────────────────────
 export const scorers = {
   toolCallAppropriatenessScorer,
   completenessScorer,
-  translationScorer,
+  financialAccuracyScorer,
 };

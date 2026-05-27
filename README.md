@@ -1,30 +1,319 @@
-# my-mastra-app
+# Tara Intelligence
 
-Welcome to your new [Mastra](https://mastra.ai/) project! We're excited to see what you'll build.
+An AI-powered mutual fund portfolio assistant built with TypeScript, Express, Gemini 2.5 Flash, and Neon PostgreSQL.
 
-## Getting Started
+Made by **Himani Kini**
 
-Start the development server:
+---
 
-```shell
+## What it does
+
+Tara lets you ask natural language questions about your mutual fund portfolio. It uses Google Gemini to understand the question, calls real SQL tools against your database, and returns an answer based on actual data — never guesses.
+
+Examples:
+- "What is my total portfolio value?"
+- "Show my top 3 funds by return"
+- "How much have I invested in midcap funds?"
+- "Show recent transactions in the last 30 days"
+
+---
+
+## Project Structure
+
+```
+tara-project/
+|__my-mastra-app
+   |__node_module
+   |__ scripts/
+   |   |__db.ts
+   |   |__ingest.ts
+   |   |__schema.ts
+   └── src/
+     ├── index.ts
+     ├── server.ts
+     ├── tools/
+     │   └── tools.ts
+     |__ agents
+     |   |__ weather-agents.ts
+     └── data/
+     |    ├── funds.json
+     |    ├── holdings.json
+     |    └── transactions.json
+     ├── .env
+     ├── package.json
+     ├── tsconfig.json
+     ├── index.html 
+    
+```
+
+### File Overview
+
+`src/index.ts`
+Mastra instance. Registers the Tara agent, tools, and LibSQL storage. This is the main entry point for the AI layer.
+
+`src/server.ts`
+Express server. Handles all HTTP routes — `/ask`, `/health`, `/api/stats`, `/api/logs`, `/api/ingest`. Calls `taraAgent.generate()` from Mastra.
+
+`src/agents/weather-agent.ts`
+Standalone Gemini agentic loop (used if running without Mastra). Handles the tool-calling cycle manually using the Gemini REST API.
+
+`src/db.ts`
+PostgreSQL connection pool using `pg`. Connects to Neon via `DATABASE_URL` with SSL.
+
+`src/ingest.ts`
+Creates database tables and loads data from the JSON files in `src/data/`. Run this once on first setup.
+
+`src/tools/tools.ts`
+Two tools: `queryTransactions` and `portfolioAnalysis`. These run parameterized SQL queries against the database and return results to the AI.
+
+`src/data/`
+Three JSON files that seed the database: `funds.json`, `holdings.json`, and `transactions.json`. Edit these with your own portfolio data and re-ingest.
+
+`public/index.html`
+The frontend. Single-page chat UI with a context panel, quick action buttons, and a request monitor that shows tool traces and latency.
+
+---
+
+## Tech Stack
+
+- TypeScript (ESM)
+- Node.js + Express
+- Google Gemini 2.5 Flash
+- Mastra AI framework
+- PostgreSQL on Neon (cloud)
+- node-postgres (`pg`)
+- Vanilla HTML / CSS / JS frontend
+
+---
+
+## Prerequisites
+
+- Node.js 18 or higher
+- A [Neon](https://neon.tech) PostgreSQL database
+- A [Google AI Studio](https://aistudio.google.com) API key for Gemini
+
+---
+
+## Setup
+
+**1. Install dependencies**
+
+```bash
+npm install
+```
+
+**2. Create your `.env` file**
+
+```env
+DATABASE_URL=postgresql://neondb_owner:<password>@<host>.neon.tech/neondb?sslmode=require
+GEMINI_API_KEY=AIzaSy...
+PORT=3000
+```
+
+**3. Start the development server**
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:4111](http://localhost:4111) in your browser to access [Mastra Studio](https://mastra.ai/docs/studio/overview). It provides an interactive UI for building and testing your agents, along with a REST API that exposes your Mastra application as a local service. This lets you start building without worrying about integration right away.
+**4. Open in browser**
 
-You can start editing files inside the `src/mastra` directory. The development server will automatically reload whenever you make changes.
+```
+http://localhost:3000
+```
 
-## Learn more
+**. Load data into the database**
 
-To learn more about Mastra, visit our [documentation](https://mastra.ai/docs/). Your bootstrapped project includes example code for [agents](https://mastra.ai/docs/agents/overview), [tools](https://mastra.ai/docs/agents/using-tools), [workflows](https://mastra.ai/docs/workflows/overview), [scorers](https://mastra.ai/docs/evals/overview), and [observability](https://mastra.ai/docs/observability/overview).
+Click the "Re-ingest Data" button in the sidebar, or run:
 
-If you're new to AI agents, check out our [course](https://mastra.ai/learn) and [YouTube videos](https://youtube.com/@mastra-ai). You can also join our [Discord](https://discord.gg/BTYqqHKUrf) community to get help and share your projects.
+```bash
+curl -X POST http://localhost:3000/api/ingest
+```
 
-## Deploy to the Mastra platform
+---
 
-The [Mastra platform](https://projects.mastra.ai) provides two products for deploying and managing AI applications built with the Mastra framework:
+## Commands
 
-- **Studio**: A hosted visual environment for testing agents, running workflows, and inspecting traces
-- **Server**: A production deployment target that runs your Mastra application as an API server
+```bash
+npm run dev       # Start server with hot reload (tsx watch)
+npm run build     # Compile TypeScript to dist/
+npm start         # Run compiled production build
+npm run ingest    # Run data ingestion from terminal
+```
 
-Learn more in the [Mastra platform documentation](https://mastra.ai/docs/mastra-platform/overview).
+---
+
+## API Routes
+
+```
+POST /ask              Send a question, receive AI answer and tool traces
+GET  /health           Check server and database connection status
+GET  /api/stats        DB record counts and request statistics
+GET  /api/logs         Last 50 request logs
+POST /api/ingest       Reload data from JSON files into the database
+```
+
+Example request:
+
+```bash
+curl -X POST http://localhost:3000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is my total portfolio value?"}'
+```
+
+Example response:
+
+```json
+{
+  "id": "abc-123",
+  "answer": "Your total portfolio value is Rs 2,45,312.50 across 3 funds.",
+  "traces": [
+    { "type": "tool_call", "tool_name": "portfolio_analysis", "content": "{\"mode\":\"summary\"}" },
+    { "type": "tool_result", "tool_name": "portfolio_analysis", "content": "{\"rows\":[...]}" }
+  ],
+  "total_latency_ms": 1243
+}
+```
+
+---
+
+## Database Schema
+
+**funds**
+```
+fund_id        TEXT  PRIMARY KEY
+fund_name      TEXT
+category       TEXT
+amc            TEXT
+fund_manager   TEXT
+benchmark      TEXT
+expense_ratio  NUMERIC
+aum_cr         NUMERIC
+current_nav    NUMERIC
+nav_date       DATE
+```
+
+**holdings**
+```
+id             SERIAL  PRIMARY KEY
+fund_id        TEXT
+fund_name      TEXT
+units          NUMERIC
+purchase_nav   NUMERIC
+purchase_date  DATE
+folio_no       TEXT
+```
+
+**transactions**
+```
+txn_id    TEXT  PRIMARY KEY
+fund_id   TEXT
+folio_no  TEXT
+txn_type  TEXT   -- BUY / SELL / DIVIDEND
+units     NUMERIC
+nav       NUMERIC
+amount    NUMERIC
+txn_date  DATE
+```
+
+---
+
+## Adding Your Own Data
+
+Edit the files in `src/data/` and click Re-ingest.
+
+`funds.json`
+
+```json
+[
+  {
+    "fund_id": "fund_bluechip",
+    "fund_name": "HDFC Bluechip Fund",
+    "category": "Large Cap",
+    "amc": "HDFC AMC",
+    "fund_manager": "Prashant Jain",
+    "benchmark": "BSE 100",
+    "expense_ratio": 1.05,
+    "aum_cr": 34500,
+    "current_nav": 98.45,
+    "nav_date": "2024-12-01"
+  }
+]
+```
+
+`holdings.json`
+
+```json
+[
+  {
+    "fund_id": "fund_bluechip",
+    "fund_name": "HDFC Bluechip Fund",
+    "units": 250.50,
+    "purchase_nav": 75.30,
+    "purchase_date": "2022-03-15",
+    "folio_no": "FOLIO001"
+  }
+]
+```
+
+`transactions.json`
+
+```json
+[
+  {
+    "txn_id": "TXN001",
+    "fund_id": "fund_bluechip",
+    "folio_no": "FOLIO001",
+    "txn_type": "BUY",
+    "units": 250.50,
+    "nav": 75.30,
+    "amount": 18862.65,
+    "txn_date": "2022-03-15"
+  }
+]
+```
+
+---
+
+## How the AI Works
+
+1. User sends a question to `POST /ask`
+2. Mastra passes it to the Tara agent (Gemini 2.5 Flash)
+3. Gemini decides which tool to call — `query_transactions` or `portfolio_analysis`
+4. The tool runs a parameterized SQL query on Neon PostgreSQL
+5. The result is returned to Gemini
+6. Gemini writes a natural language answer from the real data
+7. The answer and tool traces are sent back to the frontend
+
+All numbers in Tara's answers come from actual database queries.
+
+---
+
+## Troubleshooting
+
+**DB offline in the UI**
+Check that `DATABASE_URL` in your `.env` is correct and includes `?sslmode=require` at the end.
+
+**Gemini API error**
+Make sure `GEMINI_API_KEY` is set in `.env`. Get a free key at https://aistudio.google.com.
+
+**"column does not exist" SQL error**
+Your database tables are outdated. Click Re-ingest Data to drop and recreate them with the correct schema.
+
+**Cannot find module error**
+Run `npm run dev`, not `node src/server.ts` directly. The `tsx` runner handles TypeScript and path resolution.
+
+**Port already in use**
+Change `PORT=3001` in your `.env` file.
+
+---
+
+## Author
+
+Himani Kini
+
+---
+
+## License
+
+MIT

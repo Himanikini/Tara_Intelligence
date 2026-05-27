@@ -4,9 +4,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "mastra dev",
+    "dev": "npx tsx src/mastra/server.ts",
     "build": "mastra build",
-    "start": "mastra start"
+    "start": "npx tsx src/mastra/server.ts"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +17,7 @@
     "node": ">=22.13.0"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@mastra/core": "^1.41.0",
     "@mastra/duckdb": "^1.4.1",
     "@mastra/evals": "^1.2.4",
@@ -24,11 +25,21 @@
     "@mastra/loggers": "^1.1.2",
     "@mastra/memory": "^1.20.2",
     "@mastra/observability": "^1.14.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pg": "^8.21.0",
+    "uuid": "^14.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^25.9.1",
+    "@types/pg": "^8.20.0",
+    "@types/uuid": "^10.0.0",
     "mastra": "^1.12.2",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   }
 }
