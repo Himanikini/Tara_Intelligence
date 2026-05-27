@@ -38,6 +38,15 @@ interface RequestLog {
 const requestLogs: RequestLog[] = [];
 
 /* ── /ask ───────────────────────────────────────────────────────────────────── */
+async function safeAnswerQuestionLocally(question: string) {
+  try {
+    return await answerQuestionLocally(question);
+  } catch (err: any) {
+    console.error('[fallback error]', err?.message || err);
+    return null;
+  }
+}
+
 app.post('/ask', async (req, res) => {
   const { question } = req.body;
 
@@ -56,7 +65,7 @@ app.post('/ask', async (req, res) => {
   requestLogs.unshift(log);
 
   try {
-    const localAnswer = await answerQuestionLocally(question);
+    const localAnswer = await safeAnswerQuestionLocally(question);
     if (localAnswer) {
       const latency = Date.now() - start;
       log.status         = 'success';
@@ -118,7 +127,7 @@ app.post('/ask', async (req, res) => {
     });
 
   } catch (err: any) {
-    const fallbackAnswer = await answerQuestionLocally(question);
+    const fallbackAnswer = await safeAnswerQuestionLocally(question);
     if (fallbackAnswer) {
       const latency = Date.now() - start;
       log.status         = 'success';

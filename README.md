@@ -1,3 +1,6 @@
+# Tara Intelligence UI 
+![Tara UI] (Tara_UI.png)
+
 # Tara Intelligence
 
 An AI-powered mutual fund portfolio assistant built with TypeScript, Express, Gemini 2.5 Flash, and Neon PostgreSQL.

@@ -891,7 +891,7 @@ async function sendMessage() {
     await loadStats();
   } catch (err) {
     thinkEl.remove();
-    appendMsg('tara', '⚠️ Network error: ' + err.message);
+    appendMsg('tara', 'Network error: ' + err.message);
   } finally {
     busy = false;
     document.getElementById('gobtn').disabled = false;
@@ -954,7 +954,7 @@ async function doIngest() {
   try {
     const r = await fetch('/api/ingest', { method: 'POST' });
     const d = await r.json();
-    if (d.success) { showToast('✅ Ingestion complete!'); loadStats(); }
+    if (d.success) { showToast('Ingestion complete!'); loadStats(); }
     else showToast('❌ ' + d.error);
   } catch { showToast('❌ Network error'); }
 }
