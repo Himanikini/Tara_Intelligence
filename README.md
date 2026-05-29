@@ -12,13 +12,26 @@ Made by **Himani Kini**
 ## What it does
 
 Tara lets you ask natural language questions about your mutual fund portfolio. It uses Google Gemini to understand the question, calls real SQL tools against your database, and returns an answer based on actual data — never guesses.
+Features
 
-Examples:
-- "What is my total portfolio value?"
-- "Show my top 3 funds by return"
-- "How much have I invested in midcap funds?"
-- "Show recent transactions in the last 30 days"
+Tara Intelligence allows users to ask natural language questions about:
 
+Mutual fund portfolio
+Fund transactions
+Bank expenses
+Health expenses
+Food spending
+Investment summaries
+Monthly spending analysis
+
+Example questions:
+
+What is my total portfolio value?
+Show my mutual fund transaction history.
+How much did I spend on food last month?
+What are my top expense categories?
+Show health expenses in the last 30 days.
+Compare investments versus spending.
 ---
 
 ## Project Structure
@@ -27,6 +40,12 @@ Examples:
 tara-project/
 |__my-mastra-app
    |__node_module
+   |__data
+   |  |__fund.json
+   |  |__transcation.json
+   |  |__bank.json
+   |  |__holding.json
+   |  |__health.json
    |__ scripts/
    |   |__db.ts
    |   |__ingest.ts
@@ -92,7 +111,7 @@ The frontend. Single-page chat UI with a context panel, quick action buttons, an
 ## Prerequisites
 
 - Node.js 18 or higher
-- A [Neon](https://neon.tech) PostgreSQL database
+- PostgreSQL 14+
 - A [Google AI Studio](https://aistudio.google.com) API key for Gemini
 
 ---
@@ -107,11 +126,16 @@ npm install
 
 **2. Create your `.env` file**
 
-```env
-DATABASE_URL=postgresql://neondb_owner:<password>@<host>.neon.tech/neondb?sslmode=require
-GEMINI_API_KEY=AIzaSy...
-PORT=3000
-```
+DATABASE_URL=postgresql://postgres:himani18@localhost:5432/tara_intelligence
+
+# ── DB Credentials (individual) ──
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=tara_intelligence
+DB_USER=postgres
+DB_PASSWORD=himani18
+
+PORT = 3000
 
 **3. Start the development server**
 
@@ -145,6 +169,20 @@ npm run ingest    # Run data ingestion from terminal
 ```
 
 ---
+
+
+## Gemini API Key
+
+1. Open Google AI Studio.
+2. Sign in with your Google account.
+3. Create a new API key.
+4. Copy the generated key.
+5. Paste it into the `.env` file:
+
+```env
+GEMINI_API_KEY=AQAb8RN6JNFsCwmjXQY9t8xaMPpuiUja2z2dagXyeo7W_pPvv-fQ
+
+```
 
 ## API Routes
 

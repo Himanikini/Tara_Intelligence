@@ -955,8 +955,8 @@ async function doIngest() {
     const r = await fetch('/api/ingest', { method: 'POST' });
     const d = await r.json();
     if (d.success) { showToast('Ingestion complete!'); loadStats(); }
-    else showToast('❌ ' + d.error);
-  } catch { showToast('❌ Network error'); }
+    else showToast(' ' + d.error);
+  } catch { showToast(' Network error'); }
 }
 
 function fmt(t) {

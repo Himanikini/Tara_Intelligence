@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
-import { taraAgent } from './index.ts';       // ← Mastra agent (replaces askTara)
+import { taraAgent } from './index.ts';
 import { answerQuestionLocally } from './fallback.ts';
 import { runIngestion } from './ingest.ts';
 import { pool } from './db.ts';
@@ -14,17 +14,17 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
-const publicDir   = path.resolve(__dirname, '..', '..', 'public');
+const publicDir  = path.resolve(__dirname, '..', '..', 'public');
 
 const app  = express();
 const PORT = Number(process.env.PORT || 3000);
 
-/* ── MIDDLEWARE ─────────────────────────────────────────────────────────────── */
+//MIDDLEWARE
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(publicDir));
 
-/* ── IN-MEMORY REQUEST LOG ──────────────────────────────────────────────────── */
+// IN-MEMORY REQUEST LOG 
 interface RequestLog {
   id:              string;
   timestamp:       string;
@@ -37,7 +37,7 @@ interface RequestLog {
 
 const requestLogs: RequestLog[] = [];
 
-/* ── /ask ───────────────────────────────────────────────────────────────────── */
+//ask
 async function safeAnswerQuestionLocally(question: string) {
   try {
     return await answerQuestionLocally(question);
@@ -80,13 +80,10 @@ app.post('/ask', async (req, res) => {
       });
     }
 
-    // ── Mastra agent call (replaces the old askTara function) ──────────────────
     const result = await taraAgent.generate(question);
 
-    // Extract tool call steps from Mastra's response for the trace panel
     const traces = (result.steps ?? []).flatMap((step: any) => {
       const items: any[] = [];
-
       if (step.toolCalls?.length) {
         step.toolCalls.forEach((tc: any) => {
           items.push({
@@ -97,7 +94,6 @@ app.post('/ask', async (req, res) => {
           });
         });
       }
-
       if (step.toolResults?.length) {
         step.toolResults.forEach((tr: any) => {
           items.push({
@@ -108,12 +104,10 @@ app.post('/ask', async (req, res) => {
           });
         });
       }
-
       return items;
     });
 
     const latency = Date.now() - start;
-
     log.status         = 'success';
     log.latency_ms     = latency;
     log.trace_count    = traces.length;
@@ -141,7 +135,6 @@ app.post('/ask', async (req, res) => {
         total_latency_ms: latency,
       });
     }
-
     log.status         = 'error';
     log.answer_preview = err.message;
     console.error('[/ask error]', err.message);
@@ -149,12 +142,12 @@ app.post('/ask', async (req, res) => {
   }
 });
 
-/* ── /api/logs ─────────────────────────────────────────────────────────────── */
+//api/logs 
 app.get('/api/logs', (_req, res) => {
   res.json(requestLogs.slice(0, 50));
 });
 
-/* ── /api/stats ────────────────────────────────────────────────────────────── */
+//api/stats 
 app.get('/api/stats', async (_req, res) => {
   try {
     const [fundsRes, holdingsRes, txnRes] = await Promise.all([
@@ -190,7 +183,7 @@ app.get('/api/stats', async (_req, res) => {
   }
 });
 
-/* ── /api/ingest ───────────────────────────────────────────────────────────── */
+//api/ingest
 app.post('/api/ingest', async (_req, res) => {
   try {
     await runIngestion();
@@ -200,7 +193,7 @@ app.post('/api/ingest', async (_req, res) => {
   }
 });
 
-/* ── /health ───────────────────────────────────────────────────────────────── */
+// health 
 app.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -214,17 +207,18 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-/* ── FALLBACK → serve index.html ───────────────────────────────────────────── */
+// FALLBACK → serve index.html 
 app.use((_req, res) => {
   res.sendFile(path.resolve(publicDir, 'index.html'));
 });
 
-/* ── START ─────────────────────────────────────────────────────────────────── */
+// START 
 app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════╗
 ║   TARA INTELLIGENCE SERVER        ║
 ║   http://localhost:${PORT}            ║
+║   DB → tara_intelligence          ║
 ╚════════════════════════════════════╝
   `);
 });
