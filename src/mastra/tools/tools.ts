@@ -123,6 +123,170 @@ export async function queryTransactions(params: {
   }
 }
 
+// ─── Tool: query_bank_transactions ─────────────────────────────────────────────
+export async function queryBankTransactions(params: {
+  category?: string;
+  merchant?: string;
+  from_date?: string;
+  to_date?: string;
+  aggregate?: 'sum_amount' | 'count' | 'by_category' | 'by_merchant';
+}): Promise<ToolResult> {
+  try {
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (params.category) {
+      conditions.push(`category ILIKE $${idx++}`);
+      values.push(`%${params.category}%`);
+    }
+    if (params.merchant) {
+      conditions.push(`merchant ILIKE $${idx++}`);
+      values.push(`%${params.merchant}%`);
+    }
+    if (params.from_date) {
+      conditions.push(`txn_date >= $${idx++}`);
+      values.push(params.from_date);
+    }
+    if (params.to_date) {
+      conditions.push(`txn_date <= $${idx++}`);
+      values.push(params.to_date);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    let query: string;
+
+    if (params.aggregate === 'by_category') {
+      query = `
+        SELECT category, COUNT(*) AS txn_count,
+               ROUND(SUM(amount)::numeric, 2) AS total_amount
+        FROM tara_intelligent.bank_transactions
+        ${whereClause}
+        GROUP BY category
+        ORDER BY total_amount DESC
+      `;
+    } else if (params.aggregate === 'by_merchant') {
+      query = `
+        SELECT merchant, category, COUNT(*) AS txn_count,
+               ROUND(SUM(amount)::numeric, 2) AS total_amount
+        FROM tara_intelligent.bank_transactions
+        ${whereClause}
+        GROUP BY merchant, category
+        ORDER BY total_amount DESC
+      `;
+    } else if (params.aggregate === 'sum_amount') {
+      query = `
+        SELECT ROUND(SUM(amount)::numeric, 2) AS total_amount,
+               COUNT(*) AS txn_count
+        FROM tara_intelligent.bank_transactions
+        ${whereClause}
+      `;
+    } else if (params.aggregate === 'count') {
+      query = `
+        SELECT COUNT(*) AS txn_count
+        FROM tara_intelligent.bank_transactions
+        ${whereClause}
+      `;
+    } else {
+      query = `
+        SELECT txn_id, txn_date, merchant, category,
+               amount, currency, memo
+        FROM tara_intelligent.bank_transactions
+        ${whereClause}
+        ORDER BY txn_date DESC
+        LIMIT 100
+      `;
+    }
+
+    const result = await pool.query(query, values);
+    return { success: true, data: { rows: result.rows, row_count: result.rowCount } };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ─── Tool: query_health_transactions ───────────────────────────────────────────
+export async function queryHealthTransactions(params: {
+  sub_category?: string;
+  merchant?: string;
+  from_date?: string;
+  to_date?: string;
+  aggregate?: 'sum_amount' | 'count' | 'by_subcategory' | 'by_merchant';
+}): Promise<ToolResult> {
+  try {
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (params.sub_category) {
+      conditions.push(`sub_category ILIKE $${idx++}`);
+      values.push(`%${params.sub_category}%`);
+    }
+    if (params.merchant) {
+      conditions.push(`merchant ILIKE $${idx++}`);
+      values.push(`%${params.merchant}%`);
+    }
+    if (params.from_date) {
+      conditions.push(`txn_date >= $${idx++}`);
+      values.push(params.from_date);
+    }
+    if (params.to_date) {
+      conditions.push(`txn_date <= $${idx++}`);
+      values.push(params.to_date);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    let query: string;
+
+    if (params.aggregate === 'by_subcategory') {
+      query = `
+        SELECT sub_category, COUNT(*) AS txn_count,
+               ROUND(SUM(amount)::numeric, 2) AS total_amount
+        FROM tara_intelligent.health_transactions
+        ${whereClause}
+        GROUP BY sub_category
+        ORDER BY total_amount DESC
+      `;
+    } else if (params.aggregate === 'by_merchant') {
+      query = `
+        SELECT merchant, sub_category, COUNT(*) AS txn_count,
+               ROUND(SUM(amount)::numeric, 2) AS total_amount
+        FROM tara_intelligent.health_transactions
+        ${whereClause}
+        GROUP BY merchant, sub_category
+        ORDER BY total_amount DESC
+      `;
+    } else if (params.aggregate === 'sum_amount') {
+      query = `
+        SELECT ROUND(SUM(amount)::numeric, 2) AS total_amount,
+               COUNT(*) AS txn_count
+        FROM tara_intelligent.health_transactions
+        ${whereClause}
+      `;
+    } else if (params.aggregate === 'count') {
+      query = `
+        SELECT COUNT(*) AS txn_count
+        FROM tara_intelligent.health_transactions
+        ${whereClause}
+      `;
+    } else {
+      query = `
+        SELECT txn_id, txn_date, merchant, sub_category,
+               amount, currency, memo, bank_txn_id
+        FROM tara_intelligent.health_transactions
+        ${whereClause}
+        ORDER BY txn_date DESC
+        LIMIT 100
+      `;
+    }
+
+    const result = await pool.query(query, values);
+    return { success: true, data: { rows: result.rows, row_count: result.rowCount } };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 // ─── Tool: portfolio_analysis ─────────────────────────────────────────────────
 export async function portfolioAnalysis(params: {
   mode: 'summary' | 'holding_return' | 'fund_period_return' | 'allocation' | 'fund_detail';
@@ -332,6 +496,50 @@ export const TOOL_DEFINITIONS = [
           fund_name: { type: 'string', description: 'Partial fund name' },
           from_date: { type: 'string', description: 'Period start YYYY-MM-DD' },
           to_date: { type: 'string', description: 'Period end YYYY-MM-DD' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_bank_transactions',
+      description:
+        'Query bank transactions for expenses like groceries, fuel, shopping, utilities, and health. Supports aggregation by category or merchant.',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: { type: 'string', description: 'Transaction category e.g. Groceries, Fuel, Health' },
+          merchant: { type: 'string', description: 'Merchant name e.g. Amazon, Zomato' },
+          from_date: { type: 'string', description: 'Start date YYYY-MM-DD' },
+          to_date: { type: 'string', description: 'End date YYYY-MM-DD' },
+          aggregate: {
+            type: 'string',
+            enum: ['sum_amount', 'count', 'by_category', 'by_merchant'],
+            description: 'Aggregation mode. by_category groups by category, by_merchant groups by merchant.',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_health_transactions',
+      description:
+        'Query health transactions for medical spending such as pharmacy, diagnostics, fitness, and consultation. Supports aggregation by subcategory or merchant.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sub_category: { type: 'string', description: 'Health expense subcategory e.g. pharmacy, fitness' },
+          merchant: { type: 'string', description: 'Merchant name e.g. Apollo, Fortis' },
+          from_date: { type: 'string', description: 'Start date YYYY-MM-DD' },
+          to_date: { type: 'string', description: 'End date YYYY-MM-DD' },
+          aggregate: {
+            type: 'string',
+            enum: ['sum_amount', 'count', 'by_subcategory', 'by_merchant'],
+            description: 'Aggregation mode. by_subcategory groups by health subcategory, by_merchant groups by merchant.',
+          },
         },
       },
     },

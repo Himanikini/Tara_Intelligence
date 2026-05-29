@@ -1,4 +1,3 @@
-// src/mastra/server.ts
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -19,12 +18,12 @@ const publicDir  = path.resolve(__dirname, '..', '..', 'public');
 const app  = express();
 const PORT = Number(process.env.PORT || 3000);
 
-//MIDDLEWARE
+// ── MIDDLEWARE ────────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(publicDir));
 
-// IN-MEMORY REQUEST LOG 
+// ── IN-MEMORY REQUEST LOG ─────────────────────────────────────────────────────
 interface RequestLog {
   id:              string;
   timestamp:       string;
@@ -37,7 +36,7 @@ interface RequestLog {
 
 const requestLogs: RequestLog[] = [];
 
-//ask
+// ── SAFE FALLBACK ─────────────────────────────────────────────────────────────
 async function safeAnswerQuestionLocally(question: string) {
   try {
     return await answerQuestionLocally(question);
@@ -47,6 +46,7 @@ async function safeAnswerQuestionLocally(question: string) {
   }
 }
 
+// ── POST /ask ─────────────────────────────────────────────────────────────────
 app.post('/ask', async (req, res) => {
   const { question } = req.body;
 
@@ -142,18 +142,26 @@ app.post('/ask', async (req, res) => {
   }
 });
 
-//api/logs 
+// ── GET /api/logs ─────────────────────────────────────────────────────────────
 app.get('/api/logs', (_req, res) => {
   res.json(requestLogs.slice(0, 50));
 });
 
-//api/stats 
+// ── GET /api/stats ────────────────────────────────────────────────────────────
 app.get('/api/stats', async (_req, res) => {
   try {
-    const [fundsRes, holdingsRes, txnRes] = await Promise.all([
-      pool.query('SELECT COUNT(*) FROM funds'),
-      pool.query('SELECT COUNT(*) FROM holdings'),
-      pool.query('SELECT COUNT(*) FROM transactions'),
+    const [
+      fundsRes,
+      holdingsRes,
+      txnRes,
+      bankRes,
+      healthRes,
+    ] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM tara_intelligent.funds'),
+      pool.query('SELECT COUNT(*) FROM tara_intelligent.holdings'),
+      pool.query('SELECT COUNT(*) FROM tara_intelligent.fund_transactions'),
+      pool.query('SELECT COUNT(*) FROM tara_intelligent.bank_transactions'),
+      pool.query('SELECT COUNT(*) FROM tara_intelligent.health_transactions'),
     ]);
 
     const total   = requestLogs.length;
@@ -167,9 +175,11 @@ app.get('/api/stats', async (_req, res) => {
 
     return res.json({
       db: {
-        funds:        Number(fundsRes.rows[0].count),
-        holdings:     Number(holdingsRes.rows[0].count),
-        transactions: Number(txnRes.rows[0].count),
+        funds:               Number(fundsRes.rows[0].count),
+        holdings:            Number(holdingsRes.rows[0].count),
+        fund_transactions:   Number(txnRes.rows[0].count),
+        bank_transactions:   Number(bankRes.rows[0].count),
+        health_transactions: Number(healthRes.rows[0].count),
       },
       requests: {
         total,
@@ -183,7 +193,7 @@ app.get('/api/stats', async (_req, res) => {
   }
 });
 
-//api/ingest
+// ── POST /api/ingest ──────────────────────────────────────────────────────────
 app.post('/api/ingest', async (_req, res) => {
   try {
     await runIngestion();
@@ -193,7 +203,7 @@ app.post('/api/ingest', async (_req, res) => {
   }
 });
 
-// health 
+// ── GET /health ───────────────────────────────────────────────────────────────
 app.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -207,19 +217,19 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-// FALLBACK → serve index.html 
+// ── FALLBACK → serve index.html ───────────────────────────────────────────────
 app.use((_req, res) => {
   res.sendFile(path.resolve(publicDir, 'index.html'));
 });
 
-// START 
+// ── START SERVER ──────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`
-╔════════════════════════════════════╗
-║   TARA INTELLIGENCE SERVER        ║
-║   http://localhost:${PORT}            ║
-║   DB → tara_intelligence          ║
-╚════════════════════════════════════╝
+╔════════════════════════════════════════╗
+║      TARA INTELLIGENCE SERVER         ║
+║      http://localhost:${PORT}              ║
+║      DB → tara_intelligent (schema)   ║
+╚════════════════════════════════════════╝
   `);
 });
 

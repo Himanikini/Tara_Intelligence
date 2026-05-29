@@ -3,7 +3,7 @@
 
 # Tara Intelligence
 
-An AI-powered mutual fund portfolio assistant built with TypeScript, Express, Gemini 2.5 Flash, and Neon PostgreSQL.
+An AI-powered mutual fund portfolio assistant built with TypeScript, Express, Gemini 2.5 Flash, and  PostgreSQL.
 
 Made by **Himani Kini**
 
@@ -43,9 +43,9 @@ tara-project/
    |__data
    |  |__fund.json
    |  |__transcation.json
-   |  |__bank.json
+   |  |__bank_transcations.json
    |  |__holding.json
-   |  |__health.json
+   |  |__health_transcation.json
    |__ scripts/
    |   |__db.ts
    |   |__ingest.ts
@@ -80,7 +80,7 @@ Express server. Handles all HTTP routes — `/ask`, `/health`, `/api/stats`, `/a
 Standalone Gemini agentic loop (used if running without Mastra). Handles the tool-calling cycle manually using the Gemini REST API.
 
 `src/db.ts`
-PostgreSQL connection pool using `pg`. Connects to Neon via `DATABASE_URL` with SSL.
+PostgreSQL connection pool using `pg`. Connects to DATABASE via `DATABASE_URL` with SSL.
 
 `src/ingest.ts`
 Creates database tables and loads data from the JSON files in `src/data/`. Run this once on first setup.
@@ -89,7 +89,7 @@ Creates database tables and loads data from the JSON files in `src/data/`. Run t
 Two tools: `queryTransactions` and `portfolioAnalysis`. These run parameterized SQL queries against the database and return results to the AI.
 
 `src/data/`
-Three JSON files that seed the database: `funds.json`, `holdings.json`, and `transactions.json`. Edit these with your own portfolio data and re-ingest.
+Three JSON files that seed the database: `funds.json`, `holdings.json`, and `transactions.json`,`bank_transcation.json` and `health_transcation.json`. Edit these with your own portfolio data and re-ingest.
 
 `public/index.html`
 The frontend. Single-page chat UI with a context panel, quick action buttons, and a request monitor that shows tool traces and latency.
@@ -102,8 +102,7 @@ The frontend. Single-page chat UI with a context panel, quick action buttons, an
 - Node.js + Express
 - Google Gemini 2.5 Flash
 - Mastra AI framework
-- PostgreSQL on Neon (cloud)
-- node-postgres (`pg`)
+- PostgreSQL DataBase
 - Vanilla HTML / CSS / JS frontend
 
 ---

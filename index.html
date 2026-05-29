@@ -907,7 +907,7 @@ function appendMsg(role, text, lat, traces) {
     ? `<div class="ava u">U</div>`
     : `<div class="ava t">T</div>`;
   const foot = role !== 'user' && lat
-    ? `<div class="bub-foot">⚡ ${lat}ms · ${traces?.length || 0} steps</div>` : '';
+    ? `<div class="bub-foot"> ${lat}ms · ${traces?.length || 0} steps</div>` : '';
   d.innerHTML = `${ava}<div class="bub-wrap"><div class="bub">${fmt(text)}</div>${foot}</div>`;
   feed.appendChild(d);
 }
@@ -950,7 +950,7 @@ function scrollFeed() {
 }
 
 async function doIngest() {
-  showToast('⏳ Running ingestion…');
+  showToast(' Running ingestion…');
   try {
     const r = await fetch('/api/ingest', { method: 'POST' });
     const d = await r.json();

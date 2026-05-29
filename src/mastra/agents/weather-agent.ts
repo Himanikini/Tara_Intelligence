@@ -1,19 +1,16 @@
-// src/tara.ts  (was agent.ts — server imports it as tara.js)
 import * as dotenv from 'dotenv';
-// FIX: import from tools.ts, not from misnamed weather-tool.js
-import { queryTransactions, portfolioAnalysis, TOOL_DEFINITIONS } from '../tools/tools.ts';
+import { queryTransactions, portfolioAnalysis, queryBankTransactions, queryHealthTransactions, TOOL_DEFINITIONS } from '../tools/tools.ts';
 
 dotenv.config();
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-// FIX: always use gemini-2.5-flash, not the old text-bison-001 PaLM model
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
 if (!GEMINI_API_KEY) {
   console.warn('GEMINI_API_KEY not set — /ask endpoint will fail');
 }
 
-// ── Convert our tool definitions → Gemini functionDeclarations format ────────
+// ── Convert tool definitions → Gemini functionDeclarations format ─────────────
 function toGeminiFunctions(toolDefs: any[]) {
   return toolDefs.map((t) => ({
     name: t.function.name,
@@ -22,15 +19,21 @@ function toGeminiFunctions(toolDefs: any[]) {
   }));
 }
 
-// ── Execute whichever tool Gemini requests ────────────────────────────────────
+// ── Execute whichever tool Gemini requests ─────────────────────────────────────
 async function executeTool(name: string, args: any): Promise<any> {
   console.log(`[Tool] ${name}`, JSON.stringify(args));
-  if (name === 'query_transactions') return queryTransactions(args);
-  if (name === 'portfolio_analysis') return portfolioAnalysis(args);
+
+  if (name === 'query_transactions')        return queryTransactions(args);
+  if (name === 'portfolio_analysis')        return portfolioAnalysis(args);
+  if (name === 'query_bank_transactions')   return queryBankTransactions(args);
+  if (name === 'query_health_transactions') return queryHealthTransactions(args);
+  if (name === 'query_funds')               return queryTransactions({ ...args, table: 'funds' });
+  if (name === 'query_holdings')            return queryTransactions({ ...args, table: 'holdings' });
+
   return { success: false, error: `Unknown tool: ${name}` };
 }
 
-// ── Main exported function called by server.ts ────────────────────────────────
+// ── Main exported function called by server.ts ─────────────────────────────────
 export async function askTara(userQuestion: string): Promise<{
   answer: string;
   traces: any[];
@@ -40,19 +43,37 @@ export async function askTara(userQuestion: string): Promise<{
 
   if (!GEMINI_API_KEY) {
     return {
-      answer: ' GEMINI_API_KEY is not configured. Please add it to your .env file.',
+      answer: 'GEMINI_API_KEY is not configured. Please add it to your .env file.',
       traces: [],
       total_latency_ms: Date.now() - start,
     };
   }
 
-  const systemInstruction =
-    'You are Tara, an intelligent AI assistant for mutual fund portfolio analysis. ' +
-    'You MUST use the provided tools to fetch real data from the database — never guess numbers or make up values. ' +
-    'Always call a tool first, then compose your answer from the actual tool result. ' +
-    'Format numbers clearly (e.g. ₹1,23,456.78). Be concise and helpful.';
+  const systemInstruction = `
+You are Tara, an intelligent AI assistant for personal finance and mutual fund portfolio analysis.
+You have access to 5 database tables:
 
-  // Gemini conversation history — starts with the user question
+1. bank_transactions   — daily expenses (groceries, food, utilities, shopping, fuel, health, entertainment)
+2. health_transactions — medical expenses (pharmacy, consultation, diagnostics, fitness, optical)
+3. funds               — mutual fund master data (NAV, expense ratio, AUM, fund manager)
+4. holdings            — current mutual fund holdings (units, purchase NAV, purchase date)
+5. fund_transactions   — mutual fund buy/sell/dividend history
+
+STRICT RULES:
+- ALWAYS call a tool first before answering — never guess or make up numbers.
+- Pick the correct tool based on the question:
+  * Bank spending / expenses             → query_bank_transactions
+  * Health / medical expenses            → query_health_transactions
+  * Fund details / NAV / expense ratio   → query_funds
+  * Current holdings / portfolio value   → query_holdings
+  * Fund buy/sell/dividend history       → query_transactions
+  * Portfolio performance / analysis     → portfolio_analysis
+- Format all amounts in Indian Rupees ₹ with commas (e.g. ₹1,23,456.78).
+- Be concise, accurate and helpful.
+- If a question spans multiple tables, call multiple tools.
+`;
+
+  // Gemini conversation history
   let contents: any[] = [
     { role: 'user', parts: [{ text: userQuestion }] },
   ];
@@ -60,11 +81,10 @@ export async function askTara(userQuestion: string): Promise<{
   const traces: any[] = [];
   let finalAnswer = 'Sorry, I could not generate an answer. Please try again.';
 
-  // FIX: proper Gemini REST URL with ?key= query param (not Bearer header)
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
-  // Agentic loop — Gemini may call tools before giving final text answer
-  for (let i = 0; i < 6; i++) {
+  // Agentic loop — Gemini may call multiple tools before final answer
+  for (let i = 0; i < 10; i++) {
     const body = {
       systemInstruction: { parts: [{ text: systemInstruction }] },
       contents,
@@ -105,13 +125,14 @@ export async function askTara(userQuestion: string): Promise<{
       traces.push({
         type: 'tool_result',
         tool_name: name,
-        content: JSON.stringify(toolResult).slice(0, 300),
+        content: JSON.stringify(toolResult).slice(0, 500),
         latency_ms: null,
       });
 
-      // Add model's function call to history
+      // Add model function call to history
       contents.push({ role: 'model', parts: [{ functionCall: { name, args } }] });
-      // Add tool result — Gemini expects this as a "user" turn with functionResponse
+
+      // Add tool result as user turn
       contents.push({
         role: 'user',
         parts: [{
@@ -122,10 +143,10 @@ export async function askTara(userQuestion: string): Promise<{
         }],
       });
 
-      continue; // let Gemini see the result and respond
+      continue;
     }
 
-    // No function call → Gemini gave us the final text answer
+    // No function call → final text answer
     const textPart = parts.find((p: any) => p.text);
     if (textPart?.text) {
       finalAnswer = textPart.text;
